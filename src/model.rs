@@ -2,11 +2,9 @@ use std::path::PathBuf;
 
 use ratatui::widgets::{ListState, ScrollbarState};
 
-pub mod parser;
-pub use parser::{ParseRequest, ParseResult};
+use crate::parser::{ParseRequest, ParseResult};
 
 pub enum NaviEvent {
-    Quit,
     Down,
     Up,
     Right,
@@ -76,7 +74,6 @@ impl AppModel {
             NaviEvent::Left => {
                 self.is_list_focus = true;
             }
-            _ => {}
         }
     }
 
