@@ -40,7 +40,7 @@ pub async fn parse_file(file_path: &PathBuf) -> ParseResult {
         return ParseResult::Error(error_msg);
     }
 
-    let content = format!("{:#?}", parse_result.program);
+    let content = format!("{:#?}", parse_result.program.body);
 
     ParseResult::Success(content)
 }

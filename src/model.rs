@@ -5,10 +5,13 @@ use ratatui::widgets::{ListState, ScrollbarState};
 use crate::parser::{ParseRequest, ParseResult};
 
 pub enum NaviEvent {
+    Tab,
     ShiftDown,
     ShiftUp,
     Down,
     Up,
+    ShiftRight,
+    ShiftLeft,
     Right,
     Left,
 }
@@ -25,7 +28,8 @@ pub struct AppModel {
 
     /// Contents of the currently selected file
     pub file_contents: Option<String>,
-    pub scroll_state: ScrollbarState,
+    pub vertical_scroll_state: ScrollbarState,
+    pub horizontal_scroll_state: ScrollbarState,
 
     /// List or contents is currently focused
     pub is_list_focus: bool,
@@ -38,7 +42,8 @@ impl AppModel {
             parse_request_tx: None,
             list_state: ListState::default(),
             file_contents: None,
-            scroll_state: ScrollbarState::default(),
+            vertical_scroll_state: ScrollbarState::default(),
+            horizontal_scroll_state: ScrollbarState::default(),
             is_list_focus: true,
         }
     }
@@ -54,6 +59,7 @@ impl AppModel {
 
     pub fn handle_navi_event(&mut self, ev: NaviEvent) {
         match ev {
+            NaviEvent::Tab => self.is_list_focus = !self.is_list_focus,
             NaviEvent::ShiftDown | NaviEvent::Down => {
                 if self.is_list_focus {
                     self.list_state.select_next();
@@ -62,9 +68,9 @@ impl AppModel {
                 }
 
                 if matches!(ev, NaviEvent::ShiftDown) {
-                    self.scroll_state.last();
+                    self.vertical_scroll_state.last();
                 } else {
-                    self.scroll_state.next();
+                    self.vertical_scroll_state.next();
                 }
             }
             NaviEvent::ShiftUp | NaviEvent::Up => {
@@ -74,28 +80,43 @@ impl AppModel {
                     return;
                 }
                 if matches!(ev, NaviEvent::ShiftUp) {
-                    self.scroll_state.first();
+                    self.vertical_scroll_state.first();
                 } else {
-                    self.scroll_state.prev();
+                    self.vertical_scroll_state.prev();
                 }
             }
-            NaviEvent::Right => {
-                self.is_list_focus = false;
+            NaviEvent::ShiftRight | NaviEvent::Right if !self.is_list_focus => {
+                if matches!(ev, NaviEvent::ShiftRight) {
+                    self.horizontal_scroll_state.last();
+                } else {
+                    self.horizontal_scroll_state.next();
+                }
             }
-            NaviEvent::Left => {
-                self.is_list_focus = true;
+            NaviEvent::ShiftLeft | NaviEvent::Left if !self.is_list_focus => {
+                if matches!(ev, NaviEvent::ShiftLeft) {
+                    self.horizontal_scroll_state.first();
+                } else {
+                    self.horizontal_scroll_state.prev();
+                }
             }
+            _ => {}
         }
     }
 
     pub fn handle_parse_result(&mut self, result: ParseResult) {
         match result {
             ParseResult::Success(content) => {
-                self.scroll_state = ScrollbarState::new(content.lines().count());
+                let max_line_height = content.lines().count();
+                let max_line_width = content.lines().map(|line| line.len()).max().unwrap_or(0);
+                self.vertical_scroll_state = ScrollbarState::new(max_line_height);
+                self.horizontal_scroll_state = ScrollbarState::new(max_line_width);
                 self.file_contents = Some(content);
             }
             ParseResult::Error(error) => {
-                self.scroll_state = ScrollbarState::default();
+                let max_line_height = error.lines().count();
+                let max_line_width = error.lines().map(|line| line.len()).max().unwrap_or(0);
+                self.vertical_scroll_state = ScrollbarState::new(max_line_height);
+                self.horizontal_scroll_state = ScrollbarState::new(max_line_width);
                 self.file_contents = Some(error);
             }
         }

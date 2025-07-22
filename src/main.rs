@@ -99,8 +99,11 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
                 }
                 KeyCode::Down if with_shift => Some(NaviEvent::ShiftDown),
                 KeyCode::Up if with_shift => Some(NaviEvent::ShiftUp),
+                KeyCode::Right if with_shift => Some(NaviEvent::ShiftRight),
+                KeyCode::Left if with_shift => Some(NaviEvent::ShiftLeft),
                 KeyCode::Down => Some(NaviEvent::Down),
                 KeyCode::Up => Some(NaviEvent::Up),
+                KeyCode::Tab => Some(NaviEvent::Tab),
                 KeyCode::Right => Some(NaviEvent::Right),
                 KeyCode::Left => Some(NaviEvent::Left),
                 _ => None,

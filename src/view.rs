@@ -10,8 +10,8 @@ use crate::model::AppModel;
 // `model` is mutable just for `render_stateful_widget` to work.
 // Basically this is stateless functional render function.
 pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
-    // Add debug area if needed
-    let app_area = if let Some(h) = Some(40) {
+    // DEBUG: Add debug area if needed
+    let app_area = if let Some(h) = Some(0) {
         let [debug_area, app_area] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(h), Constraint::Fill(1)])
@@ -44,7 +44,11 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     let files_list = List::new(items)
         .block(
             Block::default()
-                .title("Files")
+                .title(if model.is_list_focus {
+                    "Files [TAB: switch focus]"
+                } else {
+                    "Files"
+                })
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .border_style(if model.is_list_focus {
@@ -69,7 +73,11 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     let file_content = Paragraph::new(Text::from(content))
         .block(
             Block::default()
-                .title("Content")
+                .title(if model.is_list_focus {
+                    "Content"
+                } else {
+                    "Content [TAB: switch focus | ←→: scroll | Shift+←→: jump]"
+                })
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .border_style(if model.is_list_focus {
@@ -78,13 +86,23 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
                     Style::new().magenta()
                 }),
         )
-        .scroll((model.scroll_state.get_position() as u16, 0));
+        .scroll((
+            model.vertical_scroll_state.get_position() as u16,
+            model.horizontal_scroll_state.get_position() as u16,
+        ));
     f.render_widget(file_content, main_area);
     f.render_stateful_widget(
         Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓")),
         main_area,
-        &mut model.scroll_state,
+        &mut model.vertical_scroll_state,
+    );
+    f.render_stateful_widget(
+        Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
+            .begin_symbol(Some("←"))
+            .end_symbol(Some("→")),
+        main_area,
+        &mut model.horizontal_scroll_state,
     );
 }
