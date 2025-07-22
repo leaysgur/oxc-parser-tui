@@ -2,6 +2,10 @@ use std::path::PathBuf;
 
 use oxc::{allocator::Allocator, parser::Parser, span::SourceType};
 
+pub fn can_parse(file_path: &PathBuf) -> bool {
+    SourceType::from_path(file_path).is_ok()
+}
+
 #[derive(Debug, Clone)]
 pub enum ParseRequest {
     ParseFile { file_path: PathBuf },

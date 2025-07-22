@@ -1,4 +1,4 @@
-// TODO: MISC: Signals based state management?
+// TODO: Horizontal scroll
 
 use std::{fs, path::PathBuf};
 
@@ -17,7 +17,7 @@ mod view;
 
 use crate::{
     model::{AppModel, NaviEvent},
-    parser::{ParseRequest, parse_file},
+    parser::{ParseRequest, can_parse, parse_file},
     view::render,
 };
 
@@ -45,6 +45,9 @@ fn main() -> Result<()> {
     for entry in fs::read_dir(&cli.dir_path)? {
         let path = entry?.path();
         if !path.is_file() {
+            continue;
+        }
+        if !can_parse(&path) {
             continue;
         }
         file_paths.push(path);
@@ -78,30 +81,32 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
     tokio::spawn(async move {
         let mut event_stream = EventStream::new();
         while let Some(Ok(ev)) = event_stream.next().await {
-            if let Some(KeyEvent {
+            // Should check press for Windows
+            let Some(KeyEvent {
                 modifiers, code, ..
             }) = ev.as_key_press_event()
-            // Should check press for Windows
-            {
-                let with_shift = modifiers.contains(KeyModifiers::SHIFT);
-                if let Some(navi_ev) = match code {
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        if should_exit_tx.send(true).is_err() {
-                            break;
-                        }
-                        None
-                    }
-                    KeyCode::Down if with_shift => Some(NaviEvent::ShiftDown),
-                    KeyCode::Up if with_shift => Some(NaviEvent::ShiftUp),
-                    KeyCode::Down => Some(NaviEvent::Down),
-                    KeyCode::Up => Some(NaviEvent::Up),
-                    KeyCode::Right => Some(NaviEvent::Right),
-                    KeyCode::Left => Some(NaviEvent::Left),
-                    _ => None,
-                } {
-                    if navi_ev_tx.send(navi_ev).is_err() {
+            else {
+                continue;
+            };
+
+            let with_shift = modifiers.contains(KeyModifiers::SHIFT);
+            if let Some(navi_ev) = match code {
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    if should_exit_tx.send(true).is_err() {
                         break;
                     }
+                    None
+                }
+                KeyCode::Down if with_shift => Some(NaviEvent::ShiftDown),
+                KeyCode::Up if with_shift => Some(NaviEvent::ShiftUp),
+                KeyCode::Down => Some(NaviEvent::Down),
+                KeyCode::Up => Some(NaviEvent::Up),
+                KeyCode::Right => Some(NaviEvent::Right),
+                KeyCode::Left => Some(NaviEvent::Left),
+                _ => None,
+            } {
+                if navi_ev_tx.send(navi_ev).is_err() {
+                    break;
                 }
             }
         }
