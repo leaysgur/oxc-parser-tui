@@ -1,7 +1,7 @@
-// TODO: CORE: Usage of tokio
-// TODO: CORE: load_file_contents.await is OK?
-// TODO: UI: Invalid file index when calling next() at the end of the list => manual idx is needed
-// TODO: UI: Scroll content by 10
+// TODO: CORE: Remove parser struct, make it just a fn
+// TODO: CORE: Usage of tokio is OK?
+// TODO: CORE: Exit is not navi event...
+// TODO: UI: Shift+scroll content by 10
 // TODO: MISC: Signals based state management?
 
 use std::{fs, path::PathBuf};
@@ -18,7 +18,7 @@ use ratatui::{
 };
 use tokio_stream::StreamExt;
 
-use oxc_parser_cli::{AppEvent, AppModel};
+use oxc_parser_cli::{AppModel, NaviEvent, parser::ParserTask};
 
 #[derive(ClapParser)]
 #[command(name = "oxc-parser-cli")]
@@ -61,22 +61,28 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut model: AppModel) {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: AppModel) {
+    let (navi_ev_tx, mut navi_ev_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (parse_result_tx, mut parse_result_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (parse_request_tx, parse_request_rx) = tokio::sync::mpsc::unbounded_channel();
 
+    // Set up the parser communication channel
+    let mut model = model.set_parse_request_tx(parse_request_tx);
+
+    // Spawn keyboard event handler
     tokio::spawn(async move {
         let mut event_stream = EventStream::new();
         while let Some(Ok(ev)) = event_stream.next().await {
             if let Event::Key(key) = ev {
-                if let Some(app_event) = match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => Some(AppEvent::Quit),
-                    KeyCode::Down => Some(AppEvent::Down),
-                    KeyCode::Up => Some(AppEvent::Up),
-                    KeyCode::Right => Some(AppEvent::Right),
-                    KeyCode::Left => Some(AppEvent::Left),
+                if let Some(navi_ev) = match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => Some(NaviEvent::Quit),
+                    KeyCode::Down => Some(NaviEvent::Down),
+                    KeyCode::Up => Some(NaviEvent::Up),
+                    KeyCode::Right => Some(NaviEvent::Right),
+                    KeyCode::Left => Some(NaviEvent::Left),
                     _ => None,
                 } {
-                    if tx.send(app_event).is_err() {
+                    if navi_ev_tx.send(navi_ev).is_err() {
                         break;
                     }
                 }
@@ -84,18 +90,30 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut model
         }
     });
 
+    // Spawn parser task handler
+    tokio::spawn(async move {
+        let parser = ParserTask::new(parse_request_rx, parse_result_tx);
+        parser.run().await;
+    });
+
+    // Main event loop
     loop {
         let _ = terminal.draw(|f| render(f, &mut model));
 
         tokio::select! {
-            Some(event) = rx.recv() => {
-                if matches!(event, AppEvent::Quit) { return; }
-                model.handle_event(event).await;
+            Some(event) = navi_ev_rx.recv() => {
+                if matches!(event, NaviEvent::Quit) { return; }
+                model.handle_navi_event(event);
+            }
+            Some(parse_result) = parse_result_rx.recv() => {
+                model.handle_parse_result(parse_result);
             }
         }
     }
 }
 
+// `model` is mutable just for `render_stateful_widget` to work.
+// Basically this is stateless functional render function.
 fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     // Add debug area if needed
     let app_area = if let Some(h) = Some(40) {
