@@ -21,13 +21,14 @@ pub async fn parse_file(file_path: &PathBuf) -> ParseResult {
     let Ok(contents) = tokio::fs::read_to_string(file_path).await else {
         return ParseResult::Error("Error reading file".to_string());
     };
-    let Ok(source_type) = SourceType::from_path(file_path) else {
-        return ParseResult::Error("Error determining source type".to_string());
-    };
 
-    // Parse the file contents using oxc
     let allocator = Allocator::default();
-    let parser = Parser::new(&allocator, &contents, source_type);
+    let parser = Parser::new(
+        &allocator,
+        &contents,
+        SourceType::from_path(file_path)
+            .expect("SourceType should be valid for pre-checked listed files"),
+    );
     let parse_result = parser.parse();
 
     if !parse_result.errors.is_empty() {
@@ -40,7 +41,5 @@ pub async fn parse_file(file_path: &PathBuf) -> ParseResult {
         return ParseResult::Error(error_msg);
     }
 
-    let content = format!("{:#?}", parse_result.program.body);
-
-    ParseResult::Success(content)
+    ParseResult::Success(format!("{:#?}", parse_result.program.body))
 }

@@ -44,14 +44,14 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     let files_list = List::new(items)
         .block(
             Block::default()
-                .title(if model.is_list_focus {
+                .title(if model.ui_is_list_focus {
                     "Files [TAB: switch focus]"
                 } else {
                     "Files"
                 })
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
-                .border_style(if model.is_list_focus {
+                .border_style(if model.ui_is_list_focus {
                     Style::new().magenta()
                 } else {
                     Style::new()
@@ -63,7 +63,7 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
                 .fg(Color::White)
                 .add_modifier(Modifier::BOLD),
         );
-    f.render_stateful_widget(files_list, side_area, &mut model.list_state);
+    f.render_stateful_widget(files_list, side_area, &mut model.ui_list_state);
 
     // Main app area
     let content = model
@@ -73,22 +73,22 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     let file_content = Paragraph::new(Text::from(content))
         .block(
             Block::default()
-                .title(if model.is_list_focus {
+                .title(if model.ui_is_list_focus {
                     "Content"
                 } else {
                     "Content [TAB: switch focus | ←→: scroll | Shift+←→: jump]"
                 })
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
-                .border_style(if model.is_list_focus {
+                .border_style(if model.ui_is_list_focus {
                     Style::new()
                 } else {
                     Style::new().magenta()
                 }),
         )
         .scroll((
-            model.vertical_scroll_state.get_position() as u16,
-            model.horizontal_scroll_state.get_position() as u16,
+            model.ui_vertical_scroll_state.get_position() as u16,
+            model.ui_horizontal_scroll_state.get_position() as u16,
         ));
     f.render_widget(file_content, main_area);
     f.render_stateful_widget(
@@ -96,13 +96,13 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓")),
         main_area,
-        &mut model.vertical_scroll_state,
+        &mut model.ui_vertical_scroll_state,
     );
     f.render_stateful_widget(
         Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
             .begin_symbol(Some("←"))
             .end_symbol(Some("→")),
         main_area,
-        &mut model.horizontal_scroll_state,
+        &mut model.ui_horizontal_scroll_state,
     );
 }

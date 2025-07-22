@@ -42,10 +42,7 @@ fn main() -> Result<()> {
     let mut file_paths = Vec::new();
     for entry in fs::read_dir(&cli.dir_path)? {
         let path = entry?.path();
-        if !path.is_file() {
-            continue;
-        }
-        if !can_parse(&path) {
+        if !path.is_file() || !can_parse(&path) {
             continue;
         }
         file_paths.push(path);
@@ -55,7 +52,7 @@ fn main() -> Result<()> {
     // Run!
     ratatui::run(|terminal| {
         let model = AppModel::new(file_paths);
-        // Use `block_on()` since `ratatui::run()` is sync
+        // Use tokio with `block_on()` since `ratatui::run()` is sync
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(run(terminal, model));
     });
@@ -63,6 +60,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+// Main function to run the TUI application
+// Every communication between components is done through channels to avoid blocking
 async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: AppModel) {
     // Channel for one-time signal to exit: Controller -> Controller
     let (should_exit_tx, mut should_exit_rx) = tokio::sync::watch::channel(false);
@@ -79,7 +78,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
     tokio::spawn(async move {
         let mut event_stream = EventStream::new();
         while let Some(Ok(ev)) = event_stream.next().await {
-            // Should check press for Windows
+            // Should check press event for Windows
             let Some(KeyEvent {
                 modifiers, code, ..
             }) = ev.as_key_press_event()
@@ -114,6 +113,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
     });
 
     // Spawn parser task handler
+    // This task contains async read file and may be heavy, so it should be run in a separate task
     tokio::spawn(async move {
         while let Some(request) = parse_req_rx.recv().await {
             match request {
@@ -127,7 +127,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
         }
     });
 
-    // Main event loop, render + handle rx events
+    // Main event loop, render + handle all rx events
     loop {
         let _ = terminal.draw(|f| render(f, &mut model));
 
