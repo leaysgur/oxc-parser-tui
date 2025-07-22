@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[derive(ClapParser)]
-#[command(name = "oxc-parser-cli")]
+#[command(name = "oxc-parser-tui")]
 #[command(about = "A TUI file viewer", long_about = None)]
 struct Cli {
     dir_path: PathBuf,
@@ -52,24 +52,28 @@ fn main() -> Result<()> {
     // Run!
     ratatui::run(|terminal| {
         let model = AppModel::new(file_paths);
-        // Use tokio with `block_on()` since `ratatui::run()` is sync
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+        // `ratatui::run()` is synchronous, so we need to create a Tokio runtime
+        // and use `block_on()` to run our async event loop
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         runtime.block_on(run(terminal, model));
     });
 
     Ok(())
 }
 
-// Main function to run the TUI application
-// Every communication between components is done through channels to avoid blocking
+// Main async function to run the TUI application
+// All communication is non-blocking to keep UI responsive
 async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: AppModel) {
-    // Channel for one-time signal to exit: Controller -> Controller
+    // Channel for one-time signal to exit: Main > Main
     let (should_exit_tx, mut should_exit_rx) = tokio::sync::watch::channel(false);
-    // Channel for navigation events: Controller -> Model
+    // Channel for navigation events: Main -> Model
     let (navi_ev_tx, mut navi_ev_rx) = tokio::sync::mpsc::unbounded_channel();
-    // Channel for parse request: Model -> Controller(Parser)
+    // Channel for parse request: Model -> Main(Parser)
     let (parse_req_tx, mut parse_req_rx) = tokio::sync::mpsc::unbounded_channel();
-    // Channel for parse result: Controller(Parser) -> Model
+    // Channel for parse result: Main(Parser) -> Model
     let (parse_res_tx, mut parse_res_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let mut model = model.set_parse_request_tx(parse_req_tx);
@@ -90,6 +94,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
             if let Some(navi_ev) = match code {
                 KeyCode::Char('q') | KeyCode::Esc => {
                     if should_exit_tx.send(true).is_err() {
+                        eprintln!("Failed to send exit signal");
                         break;
                     }
                     None
@@ -106,6 +111,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
                 _ => None,
             } {
                 if navi_ev_tx.send(navi_ev).is_err() {
+                    eprintln!("Failed to send navigation event");
                     break;
                 }
             }
@@ -120,6 +126,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
                 ParseRequest::ParseFile { file_path } => {
                     let result = parse_file(&file_path).await;
                     if parse_res_tx.send(result).is_err() {
+                        eprintln!("Failed to send parse result");
                         break;
                     }
                 }
