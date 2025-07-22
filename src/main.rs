@@ -1,5 +1,3 @@
-// TODO: Horizontal scroll
-
 use std::{fs, path::PathBuf};
 
 use clap::Parser as ClapParser;
