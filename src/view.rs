@@ -25,7 +25,7 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     // Root layout
     let [side_area, main_area] = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .areas(app_area);
 
     // Left side area
