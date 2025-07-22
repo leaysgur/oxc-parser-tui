@@ -1,4 +1,3 @@
-// TODO: CORE: Remove parser struct, make it just a fn
 // TODO: CORE: Usage of tokio is OK?
 // TODO: CORE: Exit is not navi event...
 // TODO: UI: Shift+scroll content by 10
@@ -18,7 +17,10 @@ use ratatui::{
 };
 use tokio_stream::StreamExt;
 
-use oxc_parser_cli::{AppModel, NaviEvent, parser::ParserTask};
+use oxc_parser_cli::{
+    AppModel, NaviEvent,
+    parser::{ParseRequest, parse_file},
+};
 
 #[derive(ClapParser)]
 #[command(name = "oxc-parser-cli")]
@@ -64,9 +66,8 @@ fn main() -> Result<()> {
 async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: AppModel) {
     let (navi_ev_tx, mut navi_ev_rx) = tokio::sync::mpsc::unbounded_channel();
     let (parse_result_tx, mut parse_result_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (parse_request_tx, parse_request_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (parse_request_tx, mut parse_request_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    // Set up the parser communication channel
     let mut model = model.set_parse_request_tx(parse_request_tx);
 
     // Spawn keyboard event handler
@@ -92,11 +93,19 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
 
     // Spawn parser task handler
     tokio::spawn(async move {
-        let parser = ParserTask::new(parse_request_rx, parse_result_tx);
-        parser.run().await;
+        while let Some(request) = parse_request_rx.recv().await {
+            match request {
+                ParseRequest::ParseFile { file_path } => {
+                    let result = parse_file(&file_path).await;
+                    if parse_result_tx.send(result).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
     });
 
-    // Main event loop
+    // Main event loop, render + handle rx events
     loop {
         let _ = terminal.draw(|f| render(f, &mut model));
 
