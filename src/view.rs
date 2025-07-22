@@ -7,6 +7,11 @@ use ratatui::{
 
 use crate::model::AppModel;
 
+const FOCUS_COLOR: Color = Color::Rgb(100, 200, 255); // Soft blue
+const ACCENT_COLOR: Color = Color::Rgb(255, 180, 100); // Warm orange
+const TEXT_COLOR: Color = Color::Rgb(220, 220, 220); // Light gray
+const BORDER_COLOR: Color = Color::Rgb(70, 80, 90); // Medium gray
+
 // `model` is mutable just for `render_stateful_widget` to work.
 // Basically this is stateless functional render function.
 pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
@@ -25,7 +30,7 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
     // Root layout
     let [side_area, main_area] = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
+        .constraints([Constraint::Length(30), Constraint::Fill(1)])
         .areas(app_area);
 
     // Left side area
@@ -52,38 +57,59 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .border_style(if model.ui_is_list_focus {
-                    Style::new().magenta()
+                    Style::new().fg(FOCUS_COLOR).add_modifier(Modifier::BOLD)
                 } else {
-                    Style::new()
+                    Style::new().fg(BORDER_COLOR)
+                })
+                .title_style(if model.ui_is_list_focus {
+                    Style::new().fg(FOCUS_COLOR).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::new().fg(TEXT_COLOR)
                 }),
         )
         .highlight_style(
             Style::default()
-                .bg(Color::LightMagenta)
-                .fg(Color::White)
+                .bg(FOCUS_COLOR)
+                .fg(Color::Black)
                 .add_modifier(Modifier::BOLD),
         );
     f.render_stateful_widget(files_list, side_area, &mut model.ui_list_state);
 
     // Main app area
-    let content = model
-        .file_contents
-        .as_deref()
-        .unwrap_or("Select a file to view its contents");
-    let file_content = Paragraph::new(Text::from(content))
+    let content = model.file_contents.as_deref().unwrap_or(
+        "Select a file to view its contents\n\n💡 Use ↑↓ to navigate files\n   TAB to switch focus",
+    );
+
+    let styled_content = if model.file_contents.is_some() {
+        Text::from(content).style(Style::default().fg(TEXT_COLOR))
+    } else {
+        // Style placeholder text differently
+        Text::from(content).style(
+            Style::default()
+                .fg(ACCENT_COLOR)
+                .add_modifier(Modifier::ITALIC),
+        )
+    };
+
+    let file_content = Paragraph::new(styled_content)
         .block(
             Block::default()
                 .title(if model.ui_is_list_focus {
                     "Content"
                 } else {
-                    "Content [TAB: switch focus | ←→: scroll | Shift+←→: jump]"
+                    "Content [TAB: switch focus | ←→↑↓: scroll(+SHIFT: jump)]"
                 })
                 .title_alignment(Alignment::Center)
                 .borders(Borders::ALL)
                 .border_style(if model.ui_is_list_focus {
-                    Style::new()
+                    Style::new().fg(BORDER_COLOR)
                 } else {
-                    Style::new().magenta()
+                    Style::new().fg(FOCUS_COLOR).add_modifier(Modifier::BOLD)
+                })
+                .title_style(if model.ui_is_list_focus {
+                    Style::new().fg(TEXT_COLOR)
+                } else {
+                    Style::new().fg(FOCUS_COLOR).add_modifier(Modifier::BOLD)
                 }),
         )
         .scroll((
@@ -91,17 +117,33 @@ pub fn render(f: &mut ratatui::Frame, model: &mut AppModel) {
             model.ui_horizontal_scroll_state.get_position() as u16,
         ));
     f.render_widget(file_content, main_area);
+
+    // Scroll bars
     f.render_stateful_widget(
         Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓")),
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█")
+            .style(Style::default().fg(if model.ui_is_list_focus {
+                BORDER_COLOR
+            } else {
+                FOCUS_COLOR
+            })),
         main_area,
         &mut model.ui_vertical_scroll_state,
     );
     f.render_stateful_widget(
         Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
-            .begin_symbol(Some("←"))
-            .end_symbol(Some("→")),
+            .begin_symbol(Some("◀"))
+            .end_symbol(Some("▶"))
+            .track_symbol(Some("─"))
+            .thumb_symbol("█")
+            .style(Style::default().fg(if model.ui_is_list_focus {
+                BORDER_COLOR
+            } else {
+                FOCUS_COLOR
+            })),
         main_area,
         &mut model.ui_horizontal_scroll_state,
     );
