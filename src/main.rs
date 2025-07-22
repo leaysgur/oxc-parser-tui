@@ -3,11 +3,11 @@ use std::{fs, path::PathBuf};
 use clap::Parser as ClapParser;
 use color_eyre::{Result, eyre::eyre};
 use crossterm::event::KeyModifiers;
+use futures::StreamExt;
 use ratatui::{
     Terminal,
     crossterm::event::{EventStream, KeyCode, KeyEvent},
 };
-use tokio_stream::StreamExt;
 
 mod model;
 mod parser;
