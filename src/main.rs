@@ -1,13 +1,13 @@
-// TODO: UI: Shift+scroll content by 10
 // TODO: MISC: Signals based state management?
 
 use std::{fs, path::PathBuf};
 
 use clap::Parser as ClapParser;
 use color_eyre::{Result, eyre::eyre};
+use crossterm::event::KeyModifiers;
 use ratatui::{
     Terminal,
-    crossterm::event::{Event, EventStream, KeyCode},
+    crossterm::event::{EventStream, KeyCode, KeyEvent},
 };
 use tokio_stream::StreamExt;
 
@@ -78,14 +78,21 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, model: Ap
     tokio::spawn(async move {
         let mut event_stream = EventStream::new();
         while let Some(Ok(ev)) = event_stream.next().await {
-            if let Event::Key(key) = ev {
-                if let Some(navi_ev) = match key.code {
+            if let Some(KeyEvent {
+                modifiers, code, ..
+            }) = ev.as_key_press_event()
+            // Should check press for Windows
+            {
+                let with_shift = modifiers.contains(KeyModifiers::SHIFT);
+                if let Some(navi_ev) = match code {
                     KeyCode::Char('q') | KeyCode::Esc => {
                         if should_exit_tx.send(true).is_err() {
                             break;
                         }
                         None
                     }
+                    KeyCode::Down if with_shift => Some(NaviEvent::ShiftDown),
+                    KeyCode::Up if with_shift => Some(NaviEvent::ShiftUp),
                     KeyCode::Down => Some(NaviEvent::Down),
                     KeyCode::Up => Some(NaviEvent::Up),
                     KeyCode::Right => Some(NaviEvent::Right),

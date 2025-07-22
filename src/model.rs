@@ -5,6 +5,8 @@ use ratatui::widgets::{ListState, ScrollbarState};
 use crate::parser::{ParseRequest, ParseResult};
 
 pub enum NaviEvent {
+    ShiftDown,
+    ShiftUp,
     Down,
     Up,
     Right,
@@ -52,18 +54,27 @@ impl AppModel {
 
     pub fn handle_navi_event(&mut self, ev: NaviEvent) {
         match ev {
-            NaviEvent::Down => {
+            NaviEvent::ShiftDown | NaviEvent::Down => {
                 if self.is_list_focus {
                     self.list_state.select_next();
                     self.request_parse_current_file();
+                    return;
+                }
+
+                if matches!(ev, NaviEvent::ShiftDown) {
+                    self.scroll_state.last();
                 } else {
                     self.scroll_state.next();
                 }
             }
-            NaviEvent::Up => {
+            NaviEvent::ShiftUp | NaviEvent::Up => {
                 if self.is_list_focus {
                     self.list_state.select_previous();
                     self.request_parse_current_file();
+                    return;
+                }
+                if matches!(ev, NaviEvent::ShiftUp) {
+                    self.scroll_state.first();
                 } else {
                     self.scroll_state.prev();
                 }
